@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ProtectedRoute from './components/ProtectedRoute'
+import ApplyGate from './components/ApplyGate'
 import AdminLayout from './components/AdminLayout'
 import LandingPage from './pages/LandingPage'
 import PersonalLoanForm from './pages/PersonalLoanForm'
@@ -212,7 +213,9 @@ function App() {
         path="/apply"
         element={
           <PublicLayout>
-            <SelectProduct />
+            <ApplyGate>
+              <SelectProduct />
+            </ApplyGate>
           </PublicLayout>
         }
       />
@@ -220,7 +223,9 @@ function App() {
         path="/apply/personal"
         element={
           <PublicLayout>
-            <PersonalLoanForm />
+            <ApplyGate>
+              <PersonalLoanForm />
+            </ApplyGate>
           </PublicLayout>
         }
       />
@@ -228,7 +233,9 @@ function App() {
         path="/apply/sme"
         element={
           <PublicLayout>
-            <SmeLoanForm />
+            <ApplyGate>
+              <SmeLoanForm />
+            </ApplyGate>
           </PublicLayout>
         }
       />
@@ -236,7 +243,9 @@ function App() {
         path="/apply/akap"
         element={
           <PublicLayout>
-            <AkapLoanForm />
+            <ApplyGate>
+              <AkapLoanForm />
+            </ApplyGate>
           </PublicLayout>
         }
       />
@@ -244,7 +253,9 @@ function App() {
         path="/apply/group"
         element={
           <PublicLayout>
-            <GroupLoanForm />
+            <ApplyGate>
+              <GroupLoanForm />
+            </ApplyGate>
           </PublicLayout>
         }
       />
@@ -252,7 +263,9 @@ function App() {
         path="/apply/sbl"
         element={
           <PublicLayout>
-            <SblLoanForm />
+            <ApplyGate>
+              <SblLoanForm />
+            </ApplyGate>
           </PublicLayout>
         }
       />

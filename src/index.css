@@ -359,6 +359,74 @@ body {
   }
 }
 
+/* ── Apply access gate (ApplyAccessModal) ── */
+@keyframes applyGateIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes applyGateFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes applyGateShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+.apply-gate-card {
+  animation: applyGateIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.apply-gate-backdrop {
+  animation: applyGateFade 0.3s ease-out both;
+}
+.apply-gate-shake {
+  animation: applyGateShake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+/* Padlock shackle lifts and swings open on the right leg when the code is accepted. */
+.apply-gate-shackle {
+  transform-box: fill-box;
+  transform-origin: right bottom;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.apply-gate-shackle.is-open {
+  transform: translateY(-3px) rotate(-24deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apply-gate-card,
+  .apply-gate-backdrop,
+  .apply-gate-shake {
+    animation: none;
+  }
+  .apply-gate-shackle {
+    transition: none;
+  }
+}
+
 /* Range slider in the light theme — green thumb + soft green glow. */
 .public-theme input[type='range']::-webkit-slider-thumb {
   box-shadow: 0 0 0 4px rgba(92, 184, 92, 0.16);
