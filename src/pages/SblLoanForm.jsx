@@ -8,6 +8,7 @@ import {
   buildHttpFailureResult,
   readJsonSafely,
 } from '../lib/submitErrors'
+import { applyAccessHeaders, isAccessRefused, lockApplyAccess } from '../lib/applyAccess'
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'https://loan-backend-production-cd45.up.railway.app'
@@ -456,6 +457,7 @@ export default function SblLoanForm() {
         method: 'POST',
         body: fd,
         signal: controller.signal,
+        headers: applyAccessHeaders(),
       })
       const data = await readJsonSafely(res)
       console.log('[sbl submit] response', res.status, data)
@@ -483,6 +485,12 @@ export default function SblLoanForm() {
           message:
             "Your application was likely received, but we couldn't load the confirmation. Please don't submit again — if you don't get a reference number by email, contact us before resubmitting.",
         })
+      } else if (isAccessRefused(res)) {
+        // The access code was changed on the backend mid-session. The gate
+        // refuses before anything is saved, so re-show the pop-up over the form
+        // (entries kept) rather than an error screen. No retry loop: the
+        // applicant re-enters the code, then submits again.
+        lockApplyAccess('changed')
       } else {
         // Any non-2xx: 4xx validation, app-level 5xx, or 502/503/504 gateway.
         // All member rows are written in ONE atomic bulk insert (no per-member

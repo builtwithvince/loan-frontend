@@ -8,6 +8,7 @@ import {
   buildHttpFailureResult,
   readJsonSafely,
 } from '../lib/submitErrors'
+import { applyAccessHeaders, isAccessRefused, lockApplyAccess } from '../lib/applyAccess'
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'https://loan-backend-production-cd45.up.railway.app'
@@ -434,6 +435,7 @@ export default function AkapLoanForm() {
         method: 'POST',
         body: fd,
         signal: controller.signal,
+        headers: applyAccessHeaders(),
       })
       const data = await readJsonSafely(res)
       if (res.ok && data) {
@@ -460,6 +462,12 @@ export default function AkapLoanForm() {
           message:
             "Your application was likely received, but we couldn't load the confirmation. Please don't submit again — if you don't get a reference number by email, contact us before resubmitting.",
         })
+      } else if (isAccessRefused(res)) {
+        // The access code was changed on the backend mid-session. The gate
+        // refuses before anything is saved, so re-show the pop-up over the form
+        // (entries kept) rather than an error screen. No retry loop: the
+        // applicant re-enters the code, then submits again.
+        lockApplyAccess('changed')
       } else {
         // Any non-2xx: 4xx validation, app-level 5xx, or 502/503/504 gateway.
         // Every handled outcome is a 200, so a genuine 5xx is an unhandled
@@ -1453,7 +1461,8 @@ function Step7({ docs, errors, handleFile, removeFile }) {
     <div className="space-y-5">
       <h2 className="text-xl font-bold text-green mb-1">Document Upload</h2>
       <p className="text-muted text-sm mb-4">
-        Upload clear photos or scanned copies. JPG, PNG, or PDF only. Max {MAX_UPLOAD_MB}MB per file.
+        Upload clear photos or scanned copies. JPG, PNG, or PDF only. Max {MAX_UPLOAD_MB}MB per
+        file.
       </p>
 
       <div className="space-y-3">
