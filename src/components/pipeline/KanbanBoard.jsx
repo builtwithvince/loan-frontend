@@ -24,6 +24,9 @@ function groupByStage(apps) {
     groups[stage] = []
   }
   for (const app of apps) {
+    // Withdrawn is a closed end state with no lane; without this skip the
+    // unknown stage would fall through into the Sales Officer lane.
+    if (app.stage === 'withdrawn') continue
     const stage = app.stage || 'sales_officer'
     if (groups[stage]) {
       groups[stage].push(app)

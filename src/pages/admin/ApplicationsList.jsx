@@ -545,6 +545,7 @@ export default function ApplicationsList({ onReview, onDataRefreshed }) {
             <option value="pending">Pending</option>
             <option value="approved">Approved</option>
             <option value="declined">Declined</option>
+            <option value="withdrawn">Withdrawn</option>
             <option value="pending_sa_confirmation">Pending SA Confirmation</option>
             <option value="sa_rejected">SA Rejected</option>
           </select>

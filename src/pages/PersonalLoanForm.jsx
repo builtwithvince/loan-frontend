@@ -843,8 +843,8 @@ function Step1({ form, set, errors, officers, soLoading, soError, soRetry }) {
           asked to hunt down their own borrower record. */}
       {form.application_category === 'renewal' && (
         <p className="text-muted text-xs bg-surface-alt border border-border rounded-xl px-4 py-3">
-          We'll match this to your existing GR8 record automatically using your name and mobile
-          number. Just fill in the form as usual.
+          We'll match this to your existing GR8 record automatically using your mobile number. Just
+          fill in the form as usual.
         </p>
       )}
 

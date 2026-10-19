@@ -10,7 +10,7 @@ import {
 import CiScoringForm, { CiFormReadOnly } from './CiScoringForm'
 import { useAuth } from '../../context/AuthContext'
 import { getApplicantName } from '../../lib/applicantName'
-import { STAGE_LABELS, STATUS_CHIP } from '../../constants/pipeline'
+import { STAGE_LABELS, STATUS_CHIP, WITHDRAWABLE_STAGES } from '../../constants/pipeline'
 import useSalesOfficers from '../../hooks/useSalesOfficers'
 import ClientApplicationsPanel, {
   FinscoreReuseNotice,
@@ -112,6 +112,7 @@ function ConfirmModal({
   loading,
   loadingLabel,
   requiresReason,
+  reasonLabel = 'Reason for Declining',
 }) {
   const [reason, setReason] = useState('')
   const MIN_REASON = 10
@@ -126,7 +127,7 @@ function ConfirmModal({
         {requiresReason && (
           <div className="mb-6">
             <label className="block text-sm font-medium text-white mb-2">
-              Reason for Declining <span className="text-red-400">*</span>
+              {reasonLabel} <span className="text-red-400">*</span>
             </label>
             <textarea
               value={reason}
@@ -235,6 +236,11 @@ function OverrideModal({ fullName, loading, inlineError, onConfirm, onCancel }) 
       </div>
     </div>
   )
+}
+
+// The stage_history entry written when the application was withdrawn, if any.
+function getWithdrawEntry(app) {
+  return (app.stage_history || []).findLast(h => h.to === 'withdrawn') || null
 }
 
 function formatCurrency(amount) {
@@ -984,6 +990,8 @@ function DecisionSection({ app, id, effectiveTier, effectiveFinal, tierConfig, o
   const fullName = getApplicantName(app)
   const isDecided = app.status !== 'pending'
   const isAkap = loanType === 'akap'
+  const isWithdrawn = app.status === 'withdrawn'
+  const withdrawEntry = isWithdrawn ? getWithdrawEntry(app) : null
 
   // Loan Release Date — required before approving in the Approver stage (Part 5).
   const isApproverStage = app.stage === 'approver'
@@ -1335,7 +1343,9 @@ function DecisionSection({ app, id, effectiveTier, effectiveFinal, tierConfig, o
                   ? 'bg-green/6 border-green/18'
                   : app.status === 'pending_sa_confirmation'
                     ? 'bg-amber-500/7 border-amber-500/21'
-                    : 'bg-red-500/7 border-red-500/21'
+                    : isWithdrawn
+                      ? 'bg-surface-alt border-border'
+                      : 'bg-red-500/7 border-red-500/21'
               }`}
             >
               <p
@@ -1344,15 +1354,22 @@ function DecisionSection({ app, id, effectiveTier, effectiveFinal, tierConfig, o
                     ? 'text-green/60'
                     : app.status === 'pending_sa_confirmation'
                       ? 'text-amber-400/70'
-                      : 'text-red-400/70'
+                      : isWithdrawn
+                        ? 'text-muted'
+                        : 'text-red-400/70'
                 }`}
               >
                 {app.status === 'approved'
                   ? 'APPROVED'
                   : app.status === 'pending_sa_confirmation'
                     ? 'PENDING SA CONFIRMATION'
-                    : 'DECLINED'}
+                    : isWithdrawn
+                      ? 'WITHDRAWN'
+                      : 'DECLINED'}
               </p>
+              {withdrawEntry?.meta?.withdraw_reason && (
+                <p className="text-muted text-sm mt-1">{withdrawEntry.meta.withdraw_reason}</p>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field
@@ -1377,7 +1394,9 @@ function DecisionSection({ app, id, effectiveTier, effectiveFinal, tierConfig, o
                         ? 'bg-green/12 text-green/60'
                         : app.status === 'pending_sa_confirmation'
                           ? 'bg-amber-500/14 text-amber-400/70'
-                          : 'bg-red-500/14 text-red-400/70'
+                          : isWithdrawn
+                            ? 'bg-surface-alt text-muted'
+                            : 'bg-red-500/14 text-red-400/70'
                     }
                   />
                 }
@@ -1598,8 +1617,77 @@ function DecisionSection({ app, id, effectiveTier, effectiveFinal, tierConfig, o
             )}
           </div>
         )}
+
+        <WithdrawAction app={app} id={id} onRefresh={onRefresh} />
       </div>
     </Section>
+  )
+}
+
+// Withdraw: the applicant dropped out. A neutral close, not a decline (decision 022).
+// Mirrors the backend guard: same roles as decline, pre-approval stages, nothing pushed to
+// Loandisk. Rendered with and without a CI score, since most drop-outs never reach CI.
+function WithdrawAction({ app, id, onRefresh }) {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const addToast = useToast()
+  const { hasAnyRole } = useAuth()
+
+  const canWithdraw =
+    ['pending', 'pending_sa_confirmation'].includes(app.status) &&
+    WITHDRAWABLE_STAGES.includes(app.stage) &&
+    !app.loandisk_loan_id &&
+    !app.loan_push_claimed_at &&
+    hasAnyRole(['approver', 'admin', 'super_admin'])
+  if (!canWithdraw) return null
+
+  const handleWithdraw = async reason => {
+    if (loading) return
+    setLoading(true)
+    try {
+      const res = await pipelineFetch(`/${id}/transition`, {
+        method: 'PATCH',
+        body: JSON.stringify({ to_stage: 'withdrawn', meta: { withdraw_reason: reason } }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to withdraw')
+      setModalOpen(false)
+      addToast('Application withdrawn')
+      await onRefresh()
+    } catch (err) {
+      addToast(err.message || 'Failed to withdraw', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mt-6 pt-4 border-t border-border flex flex-wrap items-center gap-3">
+      {modalOpen && (
+        <ConfirmModal
+          title="Withdraw Application"
+          message={`Withdraw the application for ${getApplicantName(app)}? Use this when the applicant dropped out. It is not a decline: their mobile number is freed and a new application will not be flagged.`}
+          confirmLabel="Withdraw"
+          confirmClass="bg-gray-500 hover:bg-gray-600 text-white"
+          loading={loading}
+          loadingLabel="Withdrawing…"
+          requiresReason
+          reasonLabel="Reason for Withdrawing"
+          onConfirm={handleWithdraw}
+          onCancel={() => setModalOpen(false)}
+        />
+      )}
+      <button
+        onClick={() => setModalOpen(true)}
+        disabled={loading}
+        className="border border-border text-muted hover:text-white hover:bg-surface-alt font-medium text-sm px-6 py-2.5 rounded-lg transition-colors disabled:opacity-50"
+      >
+        Withdraw
+      </button>
+      <span className="text-xs text-muted">
+        Applicant dropped out. Closes the application without a decline.
+      </span>
+    </div>
   )
 }
 
@@ -1881,13 +1969,25 @@ function ActivityLog({ app, finscoreRaw, finscoreNorm, effectiveFinal, effective
                 />
               )
             })}
-          {app.status !== 'pending' && (
-            <LogEntry
-              color={app.status === 'approved' ? 'bg-green/60' : 'bg-red-500/70'}
-              text={`Application ${app.status}${app.reviewed_by ? ` by ${app.reviewed_by}` : ''}`}
-              date={app.reviewed_at ? formatDate(app.reviewed_at) : null}
-            />
-          )}
+          {app.status === 'withdrawn'
+            ? (() => {
+                const w = getWithdrawEntry(app)
+                return (
+                  <LogEntry
+                    color="bg-gray-500/70"
+                    text={`Application withdrawn${w?.by_name ? ` by ${w.by_name}` : ''}`}
+                    date={w?.at ? formatDate(w.at) : null}
+                    note={w?.meta?.withdraw_reason}
+                  />
+                )
+              })()
+            : app.status !== 'pending' && (
+                <LogEntry
+                  color={app.status === 'approved' ? 'bg-green/60' : 'bg-red-500/70'}
+                  text={`Application ${app.status}${app.reviewed_by ? ` by ${app.reviewed_by}` : ''}`}
+                  date={app.reviewed_at ? formatDate(app.reviewed_at) : null}
+                />
+              )}
         </ol>
       </div>
     </Section>
@@ -2237,12 +2337,24 @@ export default function ApplicationDetail({ id, onBack }) {
           ) : (
             <Section title="Section 4 — Decision">
               <div className="pt-4">
-                <div className="bg-surface-alt rounded-lg p-6 text-center">
-                  <p className="text-muted text-sm">Awaiting CI Assessment</p>
-                  <p className="text-muted/60 text-xs mt-1">
-                    Complete the CI form above to unlock the decision panel
-                  </p>
-                </div>
+                {app.status === 'withdrawn' ? (
+                  <div className="bg-surface-alt rounded-lg p-6 text-center">
+                    <p className="text-muted text-sm font-bold">WITHDRAWN</p>
+                    {getWithdrawEntry(app)?.meta?.withdraw_reason && (
+                      <p className="text-muted/60 text-xs mt-1">
+                        {getWithdrawEntry(app).meta.withdraw_reason}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-surface-alt rounded-lg p-6 text-center">
+                    <p className="text-muted text-sm">Awaiting CI Assessment</p>
+                    <p className="text-muted/60 text-xs mt-1">
+                      Complete the CI form above to unlock the decision panel
+                    </p>
+                  </div>
+                )}
+                <WithdrawAction app={app} id={id} onRefresh={fetchApp} />
               </div>
             </Section>
           )}

@@ -790,8 +790,8 @@ export default function GroupLoanForm() {
                   never asked to hunt down their own borrower record. */}
               {applicationCategory === 'renewal' && (
                 <p className="text-muted text-xs bg-surface-alt border border-border rounded-xl px-4 py-3">
-                  We'll match this to your existing GR8 record automatically using the group
-                  leader's name and mobile number. Just fill in the form as usual.
+                  We'll match each member to their existing GR8 record automatically using their
+                  mobile number. Just fill in the form as usual.
                 </p>
               )}
 
