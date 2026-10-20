@@ -13,6 +13,7 @@ export const STATUS_CHIP = {
   approved: { label: 'Approved', tone: 'x-chip--positive' },
   declined: { label: 'Declined', tone: 'x-chip--negative' },
   pending_sa_confirmation: { label: 'Awaiting SA', tone: 'x-chip--warn' },
+  withdrawn: { label: 'Withdrawn', tone: 'x-chip--neutral' },
 }
 
 export const STAGE_LABELS = {
@@ -22,6 +23,7 @@ export const STAGE_LABELS = {
   approver: 'Approver',
   loan_processing_officer: 'Loan Processing',
   declined: 'Declined',
+  withdrawn: 'Withdrawn',
 }
 
 // Why is an application currently sitting at the sales_officer stage?
@@ -42,3 +44,6 @@ export function getSoStageReason(app) {
   if (returnedAt) return 'rework'
   return 'new'
 }
+
+// Stages an application can be withdrawn from (backend guards `<stage>->withdrawn`).
+export const WITHDRAWABLE_STAGES = ['sales_officer', 'verifier', 'ci_officer', 'approver']
