@@ -462,6 +462,8 @@ export default function SmeLoanForm() {
       // approved application), so the selector is UX copy and nothing more. Read the
       // stored category back from the admin detail response, never from this.
       fd.append('application_category', form.application_category)
+      // Stored by the backend as consent_agreed. agreeTerms itself is excluded below.
+      fd.append('consentAgreed', String(form.agreeTerms === true))
       const keyMap = {
         presentBarangay: 'barangay',
         monthlyGrossRevenue: 'monthlyIncome',
