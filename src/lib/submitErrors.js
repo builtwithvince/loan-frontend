@@ -179,18 +179,34 @@ export function buildHttpFailureResult({ status, data, attachments }) {
 }
 
 /**
- * Read a response body once, defensively. Returns the parsed JSON when the body
- * is intact and well-formed, otherwise null — a reset or truncated body must
- * not throw past the caller.
- * @param {Response} res
- * @returns {Promise<object|null>}
+ * Build the result screen for a submit that ended with no HTTP status
+ * (a SubmitTransportError from submitTransport.js).
+ *
+ * The phase decides everything. Cut off during the upload, the backend never
+ * had the whole application and saved nothing, so say so plainly and let the
+ * applicant send it again with every entry still filled in. Cut off after the
+ * upload, the backend may have saved it, so keep the "don't submit again"
+ * screen: a false retry creates a duplicate application.
+ * @param {{phase: 'upload'|'response'}} err
+ * @returns {{status:string,title?:string,message:string,suggestions?:string[],actionLabel?:string}}
  */
-export async function readJsonSafely(res) {
-  try {
-    const text = await res.text()
-    if (!text) return null
-    return JSON.parse(text)
-  } catch {
-    return null
+export function buildTransportFailureResult(err) {
+  if (err.phase === 'upload') {
+    return {
+      status: 'error',
+      title: 'Your Application Was Not Received',
+      message:
+        'The connection dropped or slowed down too much while your documents were uploading, so nothing was saved. Everything you entered is still here — you can send it again.',
+      suggestions: [
+        'Move to a spot with a stronger signal, or switch to Wi-Fi, before sending again.',
+        'Keep this page open and the screen on until you see your reference number.',
+      ],
+      actionLabel: 'Send Again',
+    }
+  }
+  return {
+    status: 'uncertain',
+    message:
+      "Your application is taking longer than expected to confirm. It may still have gone through — please don't submit again. If you don't receive a reference number, contact us first.",
   }
 }

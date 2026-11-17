@@ -4,11 +4,11 @@ import useSalesOfficers from '../hooks/useSalesOfficers'
 import {
   MAX_FILE_SIZE,
   MAX_UPLOAD_MB,
-  summarizeAttachments,
   buildHttpFailureResult,
-  readJsonSafely,
+  buildTransportFailureResult,
 } from '../lib/submitErrors'
 import { applyAccessHeaders, isAccessRefused, lockApplyAccess } from '../lib/applyAccess'
+import { submitApplication, SubmitTransportError } from '../lib/submitTransport'
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || 'https://loan-backend-production-cd45.up.railway.app'
@@ -239,6 +239,7 @@ export default function SmeLoanForm() {
   const [docs, setDocs] = useState({})
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState('') // button text while sending
   const [result, setResult] = useState(null)
   const topRef = useRef(null)
 
@@ -452,8 +453,6 @@ export default function SmeLoanForm() {
       return
     }
     setSubmitting(true)
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 90000)
     try {
       const fd = new FormData()
       fd.append('loanType', 'sme')
@@ -480,16 +479,17 @@ export default function SmeLoanForm() {
           fd.append(keyMap[k] || k, v)
       })
       Object.entries(docs).forEach(([k, file]) => fd.append(k, file, file.name))
-      // Snapshot the attached files BEFORE fetch consumes the body, so an
+      // Compresses the photos, then uploads with progress. A cut-off upload
+      // (nothing saved) and a missing answer (maybe saved) end differently:
+      // see submitTransport.js. `attachments` describes what was sent, so an
       // upload rejection we cannot read can still name the likely culprit.
-      const attachments = summarizeAttachments(fd)
-      const res = await fetch(`${API_BASE}/api/application/submit`, {
-        method: 'POST',
-        body: fd,
-        signal: controller.signal,
+      const { res, attachments } = await submitApplication({
+        url: `${API_BASE}/api/application/submit`,
+        formData: fd,
         headers: applyAccessHeaders(),
+        onStatus: setSubmitStatus,
       })
-      const data = await readJsonSafely(res)
+      const data = res.data
       if (res.ok && data) {
         if (data.status === 'error') {
           // 200 + status:'error' = this mobile number already has an application
@@ -532,13 +532,10 @@ export default function SmeLoanForm() {
         setResult(buildHttpFailureResult({ status: res.status, data, attachments }))
       }
     } catch (err) {
-      if (err.name === 'AbortError') {
-        // Timed out waiting for a response — it may still have gone through.
-        setResult({
-          status: 'uncertain',
-          message:
-            "Your application is taking longer than expected to confirm. It may still have gone through — please don't submit again. If you don't receive a reference number, contact us first.",
-        })
+      if (err instanceof SubmitTransportError) {
+        // Cut off mid-upload: nothing was saved, entries are kept, send again.
+        // Upload finished but no answer: it may be saved, so don't resubmit.
+        setResult(buildTransportFailureResult(err))
       } else {
         setResult({
           status: 'error',
@@ -547,7 +544,7 @@ export default function SmeLoanForm() {
         })
       }
     } finally {
-      clearTimeout(timer)
+      setSubmitStatus('')
       setSubmitting(false)
     }
   }
@@ -837,7 +834,7 @@ export default function SmeLoanForm() {
                 disabled={submitting}
                 className="px-8 py-3 bg-green hover:bg-green-hover text-white font-semibold text-sm rounded-xl transition-all hover:shadow-lg hover:shadow-green/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {submitting ? 'Submitting…' : 'Submit Application'}
+                {submitting ? submitStatus || 'Submitting…' : 'Submit Application'}
               </button>
             )}
           </div>
